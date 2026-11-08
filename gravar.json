@@ -1,0 +1,17 @@
+{
+  "identificador_comprovante": "44444444-4444-4444-4444-444444444444",
+  "dados": {
+    "nome": "Giovanni",
+    "tipo_documento": "CPF",
+    "numero_documento": "50329291076",
+    "numero_agencia": "2022",
+    "numero_conta": "00276",
+    "digito_verificador_conta": "0",
+    "valor_transacao": 23.99,
+    "tipo_chave_pix_destino": "CELULAR",
+    "chave_pix_destino": "11948755536",
+    "nome_cliente_destino": "Fernando",
+    "identificacao_pix": "churrasco",
+    "data_hora_transacao": "2022-04-10T20:03:57"
+  }
+}

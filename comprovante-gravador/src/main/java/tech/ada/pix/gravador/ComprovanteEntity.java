@@ -1,6 +1,7 @@
 package tech.ada.pix.gravador;
 
 import tech.ada.pix.contracts.ComprovanteRequest;
+import tech.ada.pix.contracts.ComprovanteView;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 
@@ -42,6 +43,12 @@ public class ComprovanteEntity {
     /** Constrói a entidade a partir do comando de gravação. */
     public static ComprovanteEntity de(UUID id, ComprovanteRequest dados) {
         return new ComprovanteEntity(id, dados);
+    }
+
+    /** O comprovante do jeito que a consulta mostra (Aula 4). */
+    public ComprovanteView paraView() {
+        return new ComprovanteView(id, nome, numeroDocumento, valorTransacao, chavePixDestino,
+                dataHoraTransacao, dataHoraGravacao);
     }
 
     public UUID getId() { return id; }

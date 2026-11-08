@@ -1,8 +1,8 @@
-# Sobe o gravador (porta 8082) e o emissor (porta 8081), cada um no seu container.
+# Sobe o gravador (8082), o emissor (8081), a consulta (8083) e o Redis, cada um no seu container.
 #
-#   docker compose up -d --build gravador     # o gravador, em segundo plano
-#   docker compose up --build emissor         # o emissor, mostrando o log neste terminal
-#   docker compose run --rm testes            # roda os testes (mvn test)
+#   docker compose up -d --build gravador emissor redis   # em segundo plano
+#   docker compose up --build consulta                    # a consulta, mostrando o log neste terminal
+#   docker compose run --rm testes                        # roda os testes (mvn test)
 #
 # O README explica o resto.
 name: comprovantes-pix
@@ -35,6 +35,25 @@ services:
       SPRING_H2_CONSOLE_SETTINGS_WEBALLOWOTHERS: "true"
       # Só para a demo da Aula 3 (SMS fora do ar). Ex.: DEMO_SMS_FORA=true docker compose up --build emissor
       DEMO_SMSFORA: ${DEMO_SMS_FORA:-false}
+
+  # Aula 4: o GET /comprovantes/{id}. Lê do gravador e guarda no Redis.
+  consulta:
+    build:
+      context: .
+      args:
+        MODULO: consulta
+    ports:
+      - "8083:8083"
+    environment:
+      GRAVADOR_BASE_URL: http://gravador:8082
+      SPRING_DATA_REDIS_HOST: redis
+
+  # Aula 4: o cache da consulta. Para olhar dentro: docker compose exec redis redis-cli KEYS '*'
+  # Sem "ports": só a consulta precisa falar com ele, e por dentro da rede do Docker.
+  redis:
+    image: redis:7.4-alpine
+    # Não salva nada em disco: é cache. Se o Redis reiniciar, começa vazio, e nada se perde.
+    command: ["redis-server", "--save", ""]
 
   # Roda os testes de todos os módulos, sem precisar de Java nem Maven na máquina.
   # Só sobe quando alguém pede: docker compose run --rm testes

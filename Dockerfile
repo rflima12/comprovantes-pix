@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 #
-# Uma imagem por serviço. Quem escolhe o serviço é o docker-compose.yml, com MODULO=emissor ou
-# MODULO=gravador. Com isso, ninguém precisa instalar Java nem Maven na máquina.
+# Uma imagem por serviço. Quem escolhe o serviço é o docker-compose.yml, com MODULO=emissor,
+# MODULO=gravador ou MODULO=consulta. Com isso, ninguém precisa instalar Java nem Maven na máquina.
 
 # 1º estágio: compila o projeto com Maven e Java 21.
 FROM maven:3.9.9-eclipse-temurin-21 AS build

@@ -23,6 +23,9 @@ spring:
 # Ex.: mvn -pl comprovante-gravador spring-boot:run -Dspring-boot.run.arguments=--demo.atraso-ms=3000
 demo:
   atraso-ms: 0
+  # Aula 4: toda leitura (GET) demora 1 segundo, como um banco cheio no horário de pico.
+  # É de mentira, para a diferença que o cache faz aparecer no tempo da consulta.
+  leitura-lenta-ms: 1000
 
 # ------------------------------------------------------------------------------
 # TODO (Aula 5) — consumir a fila de gravação (RabbitMQ)

@@ -7,11 +7,27 @@ spring:
   jackson:
     property-naming-strategy: SNAKE_CASE
     default-property-inclusion: non_null
+  # Aula 4: o cache mora no Redis. No Docker, o Redis é o serviço "redis" (SPRING_DATA_REDIS_HOST=redis).
+  cache:
+    type: redis
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      timeout: 1s           # se o Redis não responder em 1 segundo, desiste
+      connect-timeout: 1s
 
-# ------------------------------------------------------------------------------
-# TODO (Aula 3) — configuração do cache (Redis).
-# Retentativas: 3 antes de 404 (configurável).
-# ------------------------------------------------------------------------------
+# Aula 4: por quanto tempo um comprovante fica no cache (o TTL).
+# 60 segundos só para a aula, para dar tempo de ver a chave sumir. O comprovante não muda depois
+# de gravado: na vida real, o TTL seria de horas.
+consulta:
+  cache:
+    ttl: 60s
+
+# Aula 4: onde está o gravador (a fonte da verdade da consulta) e quanto tempo esperar por ele
+gravador:
+  base-url: http://localhost:8082
+  timeout-ms: 3000
 
 management:
   endpoints:

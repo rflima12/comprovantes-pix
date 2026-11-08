@@ -1,23 +1,33 @@
 package tech.ada.pix.consulta;
 
+import tech.ada.pix.contracts.ComprovanteView;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.util.Optional;
 import java.util.UUID;
 
 /**
- * Lógica de consulta com cache + fallback.
+ * A consulta de um comprovante (Aula 4).
  *
- *   Aula 3 — @Cacheable("comprovantes") nesta busca; miss vai ao banco e popula o cache.
- *            Implementar as 3 retentativas antes de devolver vazio (→ 404).
- *
- * Estado atual do esqueleto: sempre vazio (404), até a Aula 3 ligar cache e fonte de dados.
+ * Hoje, toda consulta vai ao gravador, que é a fonte da verdade. Como o comprovante não muda
+ * depois de gravado, isso é trabalho repetido: é aqui que o cache entra, no exercício.
  */
 @Service
 public class ConsultaService {
 
-    public Optional<Object> buscar(UUID id) {
-        // TODO (Aula 3): 1) cache  2) miss → banco/replica  3) popular cache  4) 3 retries → vazio
-        return Optional.empty();
+    private static final Logger log = LoggerFactory.getLogger(ConsultaService.class);
+
+    private final GravadorClient gravador;
+
+    public ConsultaService(GravadorClient gravador) {
+        this.gravador = gravador;
+    }
+
+    /** Vazio se o gravador não tem esse comprovante (o controller responde 404). */
+    public Optional<ComprovanteView> buscar(UUID id) {
+        log.info("Indo ao gravador buscar o comprovante {}", id);
+        return gravador.buscar(id);
     }
 }
