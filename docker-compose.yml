@@ -1,13 +1,29 @@
-# Sobe o gravador (8082), o emissor (8081), a consulta (8083) e o Redis, cada um no seu container.
+# Sobe o RabbitMQ, o emissor (8081), a consulta (8083), o Redis e o gravador (8082),
+# cada um no seu container.
 #
-#   docker compose up -d --build gravador emissor redis   # em segundo plano
-#   docker compose up --build consulta                    # a consulta, mostrando o log neste terminal
-#   docker compose run --rm testes                        # roda os testes (mvn test)
+#   docker compose up -d --build rabbitmq emissor consulta redis   # em segundo plano
+#   docker compose up --build gravador                             # o gravador, mostrando o log neste terminal
+#   docker compose run --rm testes                                 # roda os testes (mvn test)
 #
 # O README explica o resto.
 name: comprovantes-pix
 
 services:
+
+  # Aula 5: o broker, com a fila de gravação. Painel: http://localhost:15672 (usuário guest, senha guest).
+  rabbitmq:
+    image: rabbitmq:4.1-management-alpine
+    # Nome fixo: o RabbitMQ guarda as filas numa pasta com o nome da máquina.
+    hostname: rabbitmq
+    ports:
+      - "5672:5672"     # onde o emissor publica e o gravador consome
+      - "15672:15672"   # o painel, no navegador
+    # "Está pronto?" O emissor e o gravador só sobem depois que o RabbitMQ responde.
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 5s
+      timeout: 10s
+      retries: 20
 
   gravador:
     build:
@@ -16,11 +32,20 @@ services:
         MODULO: gravador
     ports:
       - "8082:8082"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
     environment:
+      # Dentro do Docker, cada serviço acha o outro pelo nome, e não por "localhost".
+      SPRING_RABBITMQ_HOST: rabbitmq
       # Deixa abrir o console do H2 de fora do container (http://localhost:8082/h2-console).
       SPRING_H2_CONSOLE_SETTINGS_WEBALLOWOTHERS: "true"
       # Só para a demo da Aula 2 (gravador lento). Ex.: DEMO_ATRASO_MS=3000 docker compose up -d gravador
       DEMO_ATRASOMS: ${DEMO_ATRASO_MS:-0}
+      # Só para a Aula 5 (o gravador grava e cai antes do ack). Ex.: DEMO_FALHAR_ANTES_DO_ACK=true docker compose up gravador
+      DEMO_FALHARANTESDOACK: ${DEMO_FALHAR_ANTES_DO_ACK:-false}
+      # Só para a Aula 5 (o banco pisca nas primeiras N tentativas). Ex.: DEMO_FALHAS_PASSAGEIRAS=2 docker compose up gravador
+      DEMO_FALHASPASSAGEIRAS: ${DEMO_FALHAS_PASSAGEIRAS:-0}
 
   emissor:
     build:
@@ -29,9 +54,13 @@ services:
         MODULO: emissor
     ports:
       - "8081:8081"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
     environment:
       # Dentro do Docker, o emissor acha o gravador pelo nome do serviço, e não por "localhost".
       GRAVADOR_BASE_URL: http://gravador:8082
+      SPRING_RABBITMQ_HOST: rabbitmq
       SPRING_H2_CONSOLE_SETTINGS_WEBALLOWOTHERS: "true"
       # Só para a demo da Aula 3 (SMS fora do ar). Ex.: DEMO_SMS_FORA=true docker compose up --build emissor
       DEMO_SMSFORA: ${DEMO_SMS_FORA:-false}

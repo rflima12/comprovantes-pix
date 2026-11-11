@@ -20,6 +20,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  */
 @SpringBootTest(properties = {
         "demo.leitura-lenta-ms=0",
+        "spring.rabbitmq.listener.simple.auto-startup=false",   // não escuta o RabbitMQ de verdade
         "spring.datasource.url=jdbc:h2:mem:gravador-leitura;DB_CLOSE_DELAY=-1"
 })
 @AutoConfigureMockMvc

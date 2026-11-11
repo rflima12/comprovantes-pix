@@ -24,6 +24,14 @@ spring:
   h2:
     console:
       enabled: true   # http://localhost:8081/h2-console (JDBC URL: jdbc:h2:mem:emissor, usuário sa)
+  # Aula 5: o RabbitMQ, onde fica a fila de gravação. No Docker, o docker-compose.yml troca
+  # o "localhost" por "rabbitmq". O emissor já sabe publicar (gravacao/FilasConfig), mas o
+  # GravacaoAdapter ainda chama o gravador por HTTP: a troca é o exercício da Aula 5.
+  rabbitmq:
+    host: localhost
+    port: 5672
+    username: guest
+    password: guest
 
 # Aula 2 — onde está o gravador (passo remoto da SAGA) e quanto tempo esperar por ele
 gravador:
@@ -34,10 +42,6 @@ gravador:
 # Ex.: mvn -pl comprovante-emissor spring-boot:run -Dspring-boot.run.arguments=--demo.sms-fora=true
 demo:
   sms-fora: false
-
-# ------------------------------------------------------------------------------
-# TODO (Aula 5) — a gravação deixa de ser REST e vira uma fila (RabbitMQ).
-# ------------------------------------------------------------------------------
 
 management:
   endpoints:

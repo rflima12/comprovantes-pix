@@ -21,7 +21,8 @@ import java.util.UUID;
  * quem quiser gravar, pede por aqui.
  *
  * POST: 201 → gravou agora · 200 → já estava gravado (idempotência).
- * Na aula de fila, este passo deixa de ser REST e vira consumo de fila.
+ * Aula 5: o pedido de gravação também chega pela fila (ConsumidorDeGravacao), e o emissor passa
+ * a usar a fila no exercício. Esta porta continua aqui para as demos (o gravar.json da Aula 4).
  *
  * GET (Aula 4): 200 → o comprovante · 404 → não está gravado. Quem chama é a consulta.
  */
@@ -46,6 +47,8 @@ public class GravadorController {
     @PostMapping
     public ResponseEntity<Void> gravar(@RequestBody GravarComprovanteCommand command) throws InterruptedException {
         boolean gravouAgora = gravador.gravar(command);
+        log.info("Recebi por HTTP o pedido de gravação do comprovante {}: {}",
+                command.identificadorComprovante(), gravouAgora ? "gravei" : "já estava gravado");
         Thread.sleep(atrasoMs); // ⚠️ só para a demo
         return ResponseEntity.status(gravouAgora ? HttpStatus.CREATED : HttpStatus.OK).build();
     }

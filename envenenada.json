@@ -1,0 +1,6 @@
+{
+  "routing_key": "gravacao",
+  "properties": { "content_type": "application/json" },
+  "payload": "{\"identificador_comprovante\":\"99999999-9999-9999-9999-999999999999\",\"dados\":null}",
+  "payload_encoding": "string"
+}

@@ -14,7 +14,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /** Mandar o MESMO comando duas vezes não pode gravar dois comprovantes. */
-@SpringBootTest
+@SpringBootTest(properties = "spring.rabbitmq.listener.simple.auto-startup=false")   // não escuta o RabbitMQ de verdade
 @AutoConfigureMockMvc
 class GravadorIdempotenciaTest {
 

@@ -28,6 +28,11 @@
             <artifactId>h2</artifactId>
             <scope>runtime</scope>
         </dependency>
+        <!-- Aula 5: o RabbitMQ (a fila de gravação) -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-amqp</artifactId>
+        </dependency>
         <dependency>
             <groupId>tech.ada.pix</groupId>
             <artifactId>shared-contracts</artifactId>

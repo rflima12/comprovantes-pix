@@ -18,19 +18,48 @@ spring:
   h2:
     console:
       enabled: true   # http://localhost:8082/h2-console (JDBC URL: jdbc:h2:mem:gravador, usuário sa)
+  # Aula 5: o RabbitMQ, onde fica a fila de gravação. No Docker, o docker-compose.yml troca
+  # o "localhost" por "rabbitmq". O painel fica em http://localhost:15672 (guest / guest).
+  rabbitmq:
+    host: localhost
+    port: 5672
+    username: guest
+    password: guest
+    listener:
+      simple:
+        acknowledge-mode: auto   # o Spring manda o ack quando o ConsumidorDeGravacao termina sem erro
+        # Passo 5 do exercício: o retry com backoff. Quando der erro, tentar de novo algumas vezes,
+        # esperando cada vez mais. Esgotou as tentativas? A mensagem vai para a DLQ.
+        retry:
+          enabled: false         # ← passo 5: troque para true
+          max-attempts: 3        # 3 tentativas ao todo: a primeira e mais duas
+          initial-interval: 1s   # espera 1 segundo antes da 2ª tentativa...
+          multiplier: 2          # ...e o dobro (2 segundos) antes da 3ª
 
-# Só para a demo do "não sei" (Aula 2): o gravador grava, mas demora para responder.
-# Ex.: mvn -pl comprovante-gravador spring-boot:run -Dspring-boot.run.arguments=--demo.atraso-ms=3000
+# Só para as demos. Nada disso existe num gravador de verdade.
 demo:
+  # Aula 2: o gravador grava, mas demora para responder (o "não sei").
+  # Ex.: DEMO_ATRASO_MS=3000 docker compose up -d gravador
   atraso-ms: 0
   # Aula 4: toda leitura (GET) demora 1 segundo, como um banco cheio no horário de pico.
   # É de mentira, para a diferença que o cache faz aparecer no tempo da consulta.
   leitura-lenta-ms: 1000
+  # Aula 5, passo 3: o gravador grava e "cai" ANTES do ack. Na reentrega, o comprovante já
+  # está gravado, e aí ele não cai. Ex.: DEMO_FALHAR_ANTES_DO_ACK=true docker compose up gravador
+  falhar-antes-do-ack: false
+  # Aula 5, desafio extra: o banco "pisca" nas primeiras N tentativas de cada comprovante.
+  # Ex.: DEMO_FALHAS_PASSAGEIRAS=2 docker compose up gravador
+  falhas-passageiras: 0
 
 # ------------------------------------------------------------------------------
-# TODO (Aula 5) — consumir a fila de gravação (RabbitMQ)
 # TODO (Aula 7) — publicar o evento "comprovante gravado" (Kafka)
 # ------------------------------------------------------------------------------
+
+# Aula 5: cada erro no ConsumidorDeGravacao já aparece numa linha só ("Deu erro no comprovante...").
+# Sem isto, o Spring repete o mesmo erro com umas 30 linhas de detalhe (o stack trace), a cada entrega.
+logging:
+  level:
+    org.springframework.amqp.rabbit.listener.ConditionalRejectingErrorHandler: error
 
 management:
   endpoints:
