@@ -31,10 +31,26 @@ spring:
         # Passo 5 do exercício: o retry com backoff. Quando der erro, tentar de novo algumas vezes,
         # esperando cada vez mais. Esgotou as tentativas? A mensagem vai para a DLQ.
         retry:
-          enabled: false         # ← passo 5: troque para true
+          enabled: true          # ligado no passo 5 do exercício da Aula 5
           max-attempts: 3        # 3 tentativas ao todo: a primeira e mais duas
           initial-interval: 1s   # espera 1 segundo antes da 2ª tentativa...
           multiplier: 2          # ...e o dobro (2 segundos) antes da 3ª
+  # Aula 6: o Kafka, onde fica o tópico comprovante-gravado. No Docker, o docker-compose.yml troca
+  # o "localhost:9092" por "kafka:19092". O painel fica em http://localhost:8090 (Kafka UI).
+  kafka:
+    bootstrap-servers: localhost:9092
+    producer:
+      # A chave (o id do comprovante) vai como texto; o fato, em JSON.
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      # O ack do produtor: espera a líder e as réplicas em dia guardarem.
+      acks: all   # já é o padrão desde o Kafka 3.0; fica escrito para a turma ver
+      properties:
+        # Não põe o nome da classe Java no cabeçalho da mensagem: quem lê já sabe o que vem.
+        spring.json.add.type.headers: false
+        # Com o Kafka fora do ar, o send espera no máximo 5 segundos, e não 60 (o padrão).
+        # Enquanto espera, o gravador não pega a próxima mensagem da fila de gravação.
+        max.block.ms: 5000
 
 # Só para as demos. Nada disso existe num gravador de verdade.
 demo:
@@ -51,15 +67,13 @@ demo:
   # Ex.: DEMO_FALHAS_PASSAGEIRAS=2 docker compose up gravador
   falhas-passageiras: 0
 
-# ------------------------------------------------------------------------------
-# TODO (Aula 7) — publicar o evento "comprovante gravado" (Kafka)
-# ------------------------------------------------------------------------------
-
 # Aula 5: cada erro no ConsumidorDeGravacao já aparece numa linha só ("Deu erro no comprovante...").
 # Sem isto, o Spring repete o mesmo erro com umas 30 linhas de detalhe (o stack trace), a cada entrega.
 logging:
   level:
     org.springframework.amqp.rabbit.listener.ConditionalRejectingErrorHandler: error
+    # Aula 6: a biblioteca do Kafka escreve dezenas de linhas de configuração ao subir. Só os avisos.
+    org.apache.kafka: warn
 
 management:
   endpoints:

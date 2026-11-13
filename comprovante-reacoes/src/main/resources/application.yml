@@ -1,0 +1,27 @@
+spring:
+  application:
+    name: comprovante-reacoes
+  main:
+    web-application-type: none   # sem porta: este serviço só escuta o tópico
+  # Aula 6: o Kafka, onde fica o tópico comprovante-gravado. No Docker, o docker-compose.yml troca
+  # o "localhost:9092" por "kafka:19092". O painel fica em http://localhost:8090 (Kafka UI).
+  kafka:
+    bootstrap-servers: localhost:9092
+    consumer:
+      # Um grupo NOVO (que nunca leu o tópico) começa do começo do que está guardado.
+      # Com "latest", começaria só do que chegar depois que ele nasceu.
+      auto-offset-reset: earliest
+      # A chave (o id do comprovante) vem como texto; o fato, em JSON.
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      # Se chegar uma mensagem que não é um ComprovanteGravadoEvent (um JSON quebrado, por exemplo),
+      # o Spring avisa no log e pula a mensagem, em vez de tentar ler a mesma mensagem para sempre.
+      value-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
+      properties:
+        spring.deserializer.value.delegate.class: org.springframework.kafka.support.serializer.JsonDeserializer
+        spring.json.value.default.type: tech.ada.pix.contracts.ComprovanteGravadoEvent
+        spring.json.use.type.headers: false
+
+logging:
+  level:
+    # A biblioteca do Kafka escreve dezenas de linhas de configuração ao subir. Só os avisos.
+    org.apache.kafka: warn

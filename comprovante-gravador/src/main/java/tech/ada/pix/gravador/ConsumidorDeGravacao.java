@@ -23,6 +23,8 @@ import java.util.concurrent.ConcurrentHashMap;
  *
  * A mesma mensagem pode chegar duas vezes. Por isso, quem grava é o GravadorService, que é
  * idempotente desde a Aula 2: olha o id do comprovante antes de gravar.
+ *
+ * Aula 6: gravou de verdade? Publica o fato "comprovante gravado" no Kafka (PublicadorDoFato).
  */
 @Component
 public class ConsumidorDeGravacao {
@@ -30,14 +32,16 @@ public class ConsumidorDeGravacao {
     private static final Logger log = LoggerFactory.getLogger(ConsumidorDeGravacao.class);
 
     private final GravadorService gravador;
+    private final PublicadorDoFato fato;
     private final boolean falharAntesDoAck;
     private final int falhasPassageiras;
     private final Map<UUID, Integer> tentativas = new ConcurrentHashMap<>(); // ⚠️ só para a demo
 
-    public ConsumidorDeGravacao(GravadorService gravador,
+    public ConsumidorDeGravacao(GravadorService gravador, PublicadorDoFato fato,
                                 @Value("${demo.falhar-antes-do-ack:false}") boolean falharAntesDoAck,
                                 @Value("${demo.falhas-passageiras:0}") int falhasPassageiras) {
         this.gravador = gravador;
+        this.fato = fato;
         this.falharAntesDoAck = falharAntesDoAck;
         this.falhasPassageiras = falhasPassageiras;
     }
@@ -68,6 +72,7 @@ public class ConsumidorDeGravacao {
 
         if (gravador.gravar(comando)) {
             log.info("Gravei o comprovante {}", id);
+            fato.publicar(comando); // Aula 6: gravou agora. Avisa quem quiser saber.
             if (falharAntesDoAck) { // ⚠️ só para o passo 3
                 throw new IllegalStateException("⚠️ demo: caí depois de gravar e ANTES do ack");
             }

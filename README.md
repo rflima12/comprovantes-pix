@@ -1,8 +1,8 @@
-# Comprovantes PIX — Aulas 1 (DDD), 2 (SAGA), 3 (comunicação), 4 (cache) e 5 (fila)
+# Comprovantes PIX — Aulas 1 (DDD), 2 (SAGA), 3 (comunicação), 4 (cache), 5 (fila) e 6 (Kafka)
 
 Exemplo do projeto guiado. Uma API que **emite** e **consulta** comprovantes de PIX que já aconteceram.
 
-**O exercício da Aula 5 está em [`EXERCICIO-AULA-05.md`](EXERCICIO-AULA-05.md).**
+**Aula 6:** o gravador publica o fato *"comprovante gravado"* num tópico do Kafka, e o SMS lê de lá, num serviço próprio. Veja [o que mudou nesta branch](#o-que-mudou-nesta-branch-aula-06).
 
 ## Comece aqui
 
@@ -11,7 +11,7 @@ Você só precisa de duas coisas instaladas:
 - o **[Git](https://git-scm.com/downloads)**. No Windows, ele traz o **Git Bash**: use ele como terminal;
 - o **[Docker Desktop](https://www.docker.com/products/docker-desktop/)**, **aberto**.
 
-Não precisa instalar Java, Maven, Redis nem RabbitMQ: eles rodam dentro do Docker.
+Não precisa instalar Java, Maven, Redis, RabbitMQ nem Kafka: eles rodam dentro do Docker.
 
 **1. Baixe o projeto.** O endereço está no botão verde **Code**, aqui no GitHub:
 
@@ -20,21 +20,25 @@ git clone <o endereço do botão Code>
 cd <a pasta que o git criou>
 ```
 
-**2. Suba o RabbitMQ, o emissor, a consulta e o Redis** (em segundo plano):
+**2. Suba tudo** (em segundo plano):
 
 ```bash
-docker compose up -d --build rabbitmq emissor consulta redis
+docker compose up -d --build
 ```
 
-**3. Suba o gravador.** Este terminal fica mostrando o log dele:
+**A primeira vez demora uns minutos**: o Docker baixa o Java, o Maven, o Redis, o RabbitMQ, o Kafka e as bibliotecas. Se puder, faça isso **antes da aula**, numa internet boa. Depois, fica rápido.
+
+**3. Acompanhe o log das reações** (o SMS). Este terminal fica mostrando o log:
 
 ```bash
-docker compose up --build gravador
+docker compose logs -f reacoes
 ```
 
-Está pronto quando aparecer `Started GravadorApplication`. **A primeira vez demora uns minutos**: o Docker baixa o Java, o Maven, o Redis, o RabbitMQ e as bibliotecas. Se puder, faça isso **antes da aula**, numa internet boa. Depois, fica rápido.
+Está pronto quando aparecer `notificacao: partitions assigned: [comprovante-gravado-0, comprovante-gravado-1, comprovante-gravado-2]`.
 
-**4. Abra o painel do RabbitMQ**, no navegador: `http://localhost:15672`, usuário `guest`, senha `guest`. Na aba **Queues and Streams**, aparecem a fila de gravação (`gravacao.q`) e a DLQ (`gravacao.dlq`), vazias.
+**4. Abra os painéis**, no navegador:
+- o do **RabbitMQ**: `http://localhost:15672`, usuário `guest`, senha `guest`. Na aba **Queues and Streams**, aparecem a fila de gravação (`gravacao.q`) e a DLQ (`gravacao.dlq`);
+- o do **Kafka** (Kafka UI): `http://localhost:8090`, sem senha. Em **Topics**, aparece o tópico `comprovante-gravado`, com 3 partições. Em **Consumers**, o grupo `notificacao`.
 
 **5. Em outro terminal**, na mesma pasta, mande um PIX. O PIX está no arquivo [`pix.json`](pix.json):
 
@@ -42,7 +46,9 @@ Está pronto quando aparecer `Started GravadorApplication`. **A primeira vez dem
 curl -i -X POST localhost:8081/comprovantes -H "Content-Type: application/json" -d "@pix.json"
 ```
 
-A primeira linha da resposta deve ser `HTTP/1.1 202`. A última traz o `identificador_comprovante`: é o id do comprovante. No log do gravador, aparece `Recebi por HTTP o pedido de gravação`: o emissor ainda chama o gravador por HTTP. A fila entra no exercício.
+A primeira linha da resposta deve ser `HTTP/1.1 202`. A última traz o `identificador_comprovante`: é o id do comprovante. No log das reações, aparece `SMS enviado: seu PIX de R$ 23.99 foi concluído (comprovante ...) [partição X, offset Y]`.
+
+O caminho: o emissor publica o **pedido** de gravação na fila `gravacao.q`; o gravador grava e publica o **fato** no tópico `comprovante-gravado`; o SMS lê o fato. *Comando na fila, fato no tópico.*
 
 **6. Consulte o comprovante**, trocando `<o id>` pelo id que veio na resposta:
 
@@ -52,7 +58,7 @@ curl -i localhost:8083/comprovantes/<o id>
 
 A resposta é `HTTP/1.1 200`, com o comprovante, e leva 1 segundo: o gravador demora **de propósito** (a demo da Aula 4).
 
-Os logs dos outros serviços aparecem com `docker compose logs emissor` (a SAGA e as reações das aulas anteriores) e `docker compose logs consulta`.
+Os logs dos outros serviços aparecem com `docker compose logs gravador` (a fila e o fato publicado, com a partição e o offset), `docker compose logs emissor` (a SAGA) e `docker compose logs consulta`.
 
 > **No PowerShell**, troque `curl` por `curl.exe`. O resto do comando é igual. Para o exercício, use o Git Bash.
 
@@ -66,12 +72,18 @@ Os logs dos outros serviços aparecem com `docker compose logs emissor` (a SAGA 
 | reiniciar o emissor depois de mudar o código | `docker compose up -d --build emissor` |
 | reiniciar a consulta depois de mudar o código | `docker compose up -d --build consulta` |
 | abrir o painel do RabbitMQ | `http://localhost:15672`, usuário `guest`, senha `guest` |
+| abrir o painel do Kafka (Kafka UI) | `http://localhost:8090` |
+| ver o log das reações (o SMS) | `docker compose logs -f reacoes` |
+| desligar as reações | `docker compose stop reacoes` |
+| ligar as reações de novo | `docker compose up -d reacoes` |
+| reiniciar as reações depois de mudar o código | `docker compose up -d --build reacoes` |
+| duas cópias das reações, no mesmo grupo | `docker compose up -d --scale reacoes=2` (e `--scale reacoes=1` para voltar) |
 | publicar a mensagem envenenada (exercício da Aula 5) | `curl -s -u guest:guest -X POST localhost:15672/api/exchanges/%2F/gravacao.ex/publish -H "Content-Type: application/json" -d "@envenenada.json"` |
 | desligar o Redis | `docker compose stop redis` |
 | ligar o Redis de novo | `docker compose start redis` |
 | ver as chaves guardadas no Redis | `docker compose exec -T redis redis-cli KEYS '*'` |
 | derrubar o emissor de repente, como uma queda | `docker compose kill emissor` |
-| ver o log de um serviço | `docker compose logs emissor` (ou `gravador`, ou `consulta`) |
+| ver o log de um serviço | `docker compose logs emissor` (ou `gravador`, `consulta`, `reacoes`) |
 | ver o que está rodando | `docker compose ps` |
 | rodar os testes | `docker compose run --rm testes` |
 | desligar tudo | `docker compose down` |
@@ -103,12 +115,13 @@ Depois, troque os comandos do Docker por estes, cada serviço no seu terminal:
 |---|---|
 | `docker compose up -d --build rabbitmq emissor consulta redis` | `mvn -pl comprovante-emissor spring-boot:run` e `mvn -pl comprovante-consulta spring-boot:run -Dspring-boot.run.arguments=--spring.cache.type=simple` |
 | `docker compose up --build gravador` | `mvn -pl comprovante-gravador spring-boot:run` |
+| `docker compose up -d --build reacoes` | `mvn -pl comprovante-reacoes spring-boot:run` |
 | `docker compose stop gravador` | `Ctrl+C` no terminal do gravador |
 | `docker compose kill emissor` | `Ctrl+C` no terminal do emissor |
 | `DEMO_FALHAR_ANTES_DO_ACK=true docker compose up gravador` | `mvn -pl comprovante-gravador spring-boot:run -Dspring-boot.run.arguments=--demo.falhar-antes-do-ack=true` |
 | `docker compose run --rm testes` | `mvn test` |
 
-Sem Docker, não tem Redis: o `--spring.cache.type=simple` guarda o cache na memória da própria consulta. E não tem RabbitMQ: o gravador fica tentando se conectar e, depois do passo 2 do exercício, o emissor não consegue publicar. **Os exercícios das Aulas 4 e 5 precisam do Docker**: eles olham dentro do Redis e do RabbitMQ. Quem tem Java pode rodar os serviços na máquina e só o RabbitMQ no Docker (`docker compose up -d rabbitmq`): os serviços acham ele em `localhost:5672`.
+Sem Docker, não tem Redis: o `--spring.cache.type=simple` guarda o cache na memória da própria consulta. E não tem RabbitMQ: o gravador fica tentando se conectar e, depois do passo 2 do exercício, o emissor não consegue publicar. **Os exercícios das Aulas 4, 5 e 6 precisam do Docker**: eles olham dentro do Redis, do RabbitMQ e do Kafka. Quem tem Java pode rodar os serviços na máquina e só o RabbitMQ e o Kafka no Docker (`docker compose up -d rabbitmq kafka kafka-ui`): os serviços acham eles em `localhost:5672` e `localhost:9092`.
 
 No Git Bash, às vezes o `Ctrl+C` não fecha o Java, e ele não sobe de novo (`Port 8081 was already in use`). Rode `netstat -ano | grep :8081` (troque pela porta da mensagem): o último número da linha é o PID. Depois, `taskkill //PID <o número> //F`.
 
@@ -116,7 +129,7 @@ No Git Bash, às vezes o `Ctrl+C` não fecha o Java, e ele não sobe de novo (`P
 
 | Branch | O que tem |
 |---|---|
-| `main` | **O ponto de partida da aula de agora.** Hoje, é igual à `aula-05`. |
+| `main` | **O ponto de partida da aula de agora.** Hoje, é igual à `aula-06`. |
 | `as-is` | O "antes" da Aula 1: um monólito ruim de propósito, para a turma criticar. |
 | `v0` | Só a **estrutura**: os módulos, as classes vazias e os `// TODO`. É o ponto de partida da Aula 1. |
 | `gabarito` | Fim da Aula 1: validação no emissor + o modelo de domínio com **entidade** e **Value Objects**. |
@@ -125,6 +138,7 @@ No Git Bash, às vezes o `Ctrl+C` não fecha o Java, e ele não sobe de novo (`P
 | `aula-04` | Aula 4: a consulta passa a responder, lendo do gravador, e já tem o Redis do lado. O **cache** entra no exercício. |
 | `aula-04-gabarito` | A correção do exercício da Aula 4: o cache pronto na consulta e a folha com as respostas. |
 | `aula-05` | Aula 5: o **RabbitMQ** entra no projeto, com a fila de gravação e a DLQ. O gravador já escuta a fila. Trocar o HTTP pela fila, no emissor, e ligar o retry entram no exercício. |
+| `aula-06` | Aula 6: o **Kafka** entra no projeto. O gravador publica o fato *"comprovante gravado"* no tópico `comprovante-gravado`, e o SMS sai do emissor para um serviço novo, o `comprovante-reacoes`. |
 
 A correção de cada exercício entra numa branch com `-gabarito` no nome, publicada **depois** da correção em aula.
 
@@ -133,14 +147,14 @@ O Docker existe a partir da `aula-03`. Nas branches anteriores, rode sem Docker.
 Para trocar de uma branch para a outra:
 
 ```bash
-git switch aula-04
 git switch aula-05
+git switch aula-06
 ```
 
 Para ver tudo o que muda entre duas branches:
 
 ```bash
-git diff aula-04 aula-05
+git diff aula-05 aula-06
 ```
 
 ## Os módulos
@@ -149,18 +163,21 @@ Cada serviço é um **bounded context**. O emissor e o gravador têm o seu próp
 
 | Módulo | Porta | O que faz |
 |---|---|---|
-| `comprovante-emissor` | 8081 | Recebe o `POST /comprovantes`, valida, chama o gravador e responde `202` (ou `503` se a gravação falhou). No exercício da Aula 5, passa a publicar o pedido de gravação na fila, em vez de chamar o gravador |
-| `comprovante-gravador` | 8082 | Recebe o pedido de gravação pela fila `gravacao.q` ou pelo `POST /interno/comprovantes`, e salva no banco dele, sem gravar duas vezes o mesmo id. Responde o `GET /interno/comprovantes/{id}`, que a consulta chama |
+| `comprovante-emissor` | 8081 | Recebe o `POST /comprovantes`, valida, publica o pedido de gravação na fila `gravacao.q` e responde `202` (ou `503` se o RabbitMQ estiver fora do ar) |
+| `comprovante-gravador` | 8082 | Recebe o pedido de gravação pela fila `gravacao.q` ou pelo `POST /interno/comprovantes`, e salva no banco dele, sem gravar duas vezes o mesmo id. Quando grava, publica o fato no tópico `comprovante-gravado`, com o id do comprovante como chave. Responde o `GET /interno/comprovantes/{id}`, que a consulta chama |
+| `comprovante-reacoes` | — | Aula 6: as reações ao fato. Lê o tópico `comprovante-gravado`: o SMS, no grupo `notificacao`. Não tem porta nem banco |
 | `comprovante-consulta` | 8083 | Responde o `GET /comprovantes/{id}`, lendo do gravador. Guarda o que leu no Redis (no exercício) |
 | `redis` | — | O cache da consulta. Não tem porta aberta para fora: só a consulta fala com ele, por dentro do Docker |
 | `rabbitmq` | 5672 e 15672 | O broker: guarda a fila de gravação (`gravacao.q`) e a DLQ (`gravacao.dlq`). Os serviços falam com ele na 5672; o painel fica na 15672 |
+| `kafka` | 9092 | O Kafka, com o tópico `comprovante-gravado` (3 partições). Um broker só. Dentro do Docker, os serviços falam com ele em `kafka:19092` |
+| `kafka-ui` | 8090 | O painel do Kafka: os tópicos, as mensagens (com a chave, a partição e o offset) e os grupos (com o lag) |
 | `shared-contracts` | — | Classes que os serviços trocam entre si (os "envelopes" de dados) |
 
 ```
 .
 ├── pom.xml                    # projeto "pai", junta os módulos
 ├── Dockerfile                 # como montar a imagem de cada serviço
-├── docker-compose.yml         # sobe os serviços, o Redis e o RabbitMQ (e roda os testes)
+├── docker-compose.yml         # sobe os serviços, o Redis, o RabbitMQ e o Kafka (e roda os testes)
 ├── pix.json                   # o PIX de exemplo, para o curl
 ├── gravar.json                # um comprovante para gravar direto no gravador (exercício da Aula 4)
 ├── envenenada.json            # um pedido de gravação com defeito, para a fila (exercício da Aula 5)
@@ -171,6 +188,7 @@ Cada serviço é um **bounded context**. O emissor e o gravador têm o seu próp
 ├── comprovante-emissor/
 ├── comprovante-gravador/
 ├── comprovante-consulta/
+├── comprovante-reacoes/       # Aula 6: as reações ao fato "comprovante gravado"
 └── docs/
     ├── arquitetura.md         # desenho dos serviços e de como eles crescem nas aulas
     └── adr/                   # decisões registradas (ADR-001: cada serviço com seu banco)
@@ -182,9 +200,8 @@ Cada serviço é um **bounded context**. O emissor e o gravador têm o seu próp
 |---|---|
 | Tudo certo | `202`, e o comprovante fica `GRAVADO` |
 | Campo errado (troque `"numero_conta": "00276"` por `"002761"` no `pix.json`) | `400`, com o campo errado na `message`, e ninguém chama o gravador |
-| Gravador desligado (`docker compose stop gravador`) | `503`, com o id do comprovante na `message`, e o comprovante fica `INVALIDADO` (a SAGA desfez) |
-
-Depois do passo 2 do exercício da Aula 5, o gravador desligado não derruba mais o PIX: o emissor responde `202`, e o pedido de gravação espera na fila até o gravador voltar.
+| Gravador desligado (`docker compose stop gravador`) | `202`: o pedido de gravação espera na fila até o gravador voltar. O SMS só sai depois que o gravador grava |
+| RabbitMQ desligado (`docker compose stop rabbitmq`) | `503`, com o id do comprovante na `message`, e o comprovante fica `INVALIDADO` (a SAGA desfez) |
 
 **O que a consulta responde:**
 
@@ -219,6 +236,8 @@ curl -i -X POST localhost:8082/interno/comprovantes -H 'Content-Type: applicatio
 
 ## A demo da Aula 3: o SMS fora do ar
 
+> Esta demo vale **até a branch `aula-05`**. Na `aula-06`, as reações saíram do emissor (foram para o `comprovante-reacoes`), e a chave `DEMO_SMS_FORA` não existe mais. Para ver, `git switch aula-05`.
+
 Suba o emissor com a "operadora de SMS" fora, mostrando o log dele:
 
 ```bash
@@ -230,7 +249,29 @@ DEMO_SMS_FORA=true docker compose up --build emissor
 
 No PowerShell, a variável é assim: `$env:DEMO_SMS_FORA="true"; docker compose up --build emissor`. Para voltar ao normal, feche o terminal (ou `$env:DEMO_SMS_FORA="false"`) e suba de novo.
 
-## O que mudou nesta branch (`aula-05`)
+## O que mudou nesta branch (`aula-06`)
+
+O **Kafka** entra no projeto. O gravador, que é quem sabe que gravou, publica o **fato** *"comprovante gravado"* num tópico. Quem quiser saber lê o tópico, cada um no seu grupo e no seu ritmo, e o gravador não conhece ninguém.
+
+```
+ emissor ──publica──► RABBITMQ (gravacao.q) ──► gravador ──► H2 do gravador
+           o comando: "grave este comprovante"     │ gravou de verdade?
+                                                   ▼ publica o fato (chave: o id do comprovante)
+                                KAFKA: tópico comprovante-gravado (3 partições)
+                                                   │
+                                         grupo "notificacao" (o SMS)
+                                           comprovante-reacoes
+```
+
+- **O que já vinha do exercício da Aula 5:** o `GravacaoAdapter` publica na fila, e o retry do gravador está ligado.
+- **O Kafka no Docker:** um broker só (`apache/kafka:3.9.1`, sem ZooKeeper), na porta `9092`, com a criação automática de tópico desligada. E o painel, o **Kafka UI**, em `http://localhost:8090`.
+- **O tópico** `comprovante-gravado`: 3 partições, 1 réplica. Os nomes ficam no `shared-contracts`, em `TopicoComprovanteGravado`. O gravador e as reações declaram o mesmo tópico (`TopicoConfig`), como a topologia do RabbitMQ na Aula 5.
+- **O gravador publica o fato** (`PublicadorDoFato`) só quando grava de verdade. No *"já estava gravado"*, não publica. O fato (`ComprovanteGravadoEvent`) leva o id, o valor e a hora. No log: `Publiquei o fato no tópico comprovante-gravado: comprovante ... (partição 1, offset 0)`. A partição e o offset chegam na confirmação do Kafka (o ack do produtor, `acks: all`).
+- **O serviço novo `comprovante-reacoes`**, sem porta e sem banco, com a `NotificacaoSms` no grupo `notificacao`. Um grupo novo começa do começo do que está guardado (`auto-offset-reset: earliest`).
+- **As reações saíram do emissor**, junto com o evento do Spring da Aula 3 (`ComprovanteGravado`) e o `@EnableAsync`.
+- **Os testes não precisam do Kafka rodando.** 34 no total.
+
+## O que mudou na branch `aula-05`
 
 O RabbitMQ entra no projeto, com a fila de gravação pronta. O gravador **já escuta** a fila. O emissor **ainda** chama o gravador por HTTP: trocar o HTTP pela fila é o passo 2 do exercício, e muda um arquivo só, o `GravacaoAdapter`.
 

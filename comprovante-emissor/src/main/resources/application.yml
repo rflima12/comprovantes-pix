@@ -25,8 +25,8 @@ spring:
     console:
       enabled: true   # http://localhost:8081/h2-console (JDBC URL: jdbc:h2:mem:emissor, usuário sa)
   # Aula 5: o RabbitMQ, onde fica a fila de gravação. No Docker, o docker-compose.yml troca
-  # o "localhost" por "rabbitmq". O emissor já sabe publicar (gravacao/FilasConfig), mas o
-  # GravacaoAdapter ainda chama o gravador por HTTP: a troca é o exercício da Aula 5.
+  # o "localhost" por "rabbitmq". O GravacaoAdapter publica o pedido de gravação na fila
+  # (exercício da Aula 5).
   rabbitmq:
     host: localhost
     port: 5672
@@ -37,11 +37,6 @@ spring:
 gravador:
   base-url: http://localhost:8082
   timeout-ms: 2000
-
-# Só para a demo da Aula 3: a "operadora de SMS" está fora do ar e o SMS falha.
-# Ex.: mvn -pl comprovante-emissor spring-boot:run -Dspring-boot.run.arguments=--demo.sms-fora=true
-demo:
-  sms-fora: false
 
 management:
   endpoints:

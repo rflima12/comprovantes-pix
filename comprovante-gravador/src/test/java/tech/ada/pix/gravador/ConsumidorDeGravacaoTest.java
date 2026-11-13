@@ -3,6 +3,7 @@ package tech.ada.pix.gravador;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import tech.ada.pix.contracts.ComprovanteRequest;
 import tech.ada.pix.contracts.GravarComprovanteCommand;
 import tech.ada.pix.contracts.TipoChavePix;
@@ -14,6 +15,10 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 /**
  * Aula 5: o consumidor da fila de gravação.
@@ -23,6 +28,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  */
 @SpringBootTest(properties = {
         "spring.rabbitmq.listener.simple.auto-startup=false",   // não escuta o RabbitMQ de verdade
+        "spring.kafka.admin.auto-create=false",                 // não cria o tópico no Kafka de verdade
         "spring.datasource.url=jdbc:h2:mem:gravador-consumidor;DB_CLOSE_DELAY=-1"
 })
 class ConsumidorDeGravacaoTest {
@@ -35,6 +41,9 @@ class ConsumidorDeGravacaoTest {
 
     @Autowired
     private ComprovanteRepository repository;
+
+    @MockBean
+    private PublicadorDoFato fato;   // o Kafka de mentira: o teste não precisa do Kafka rodando
 
     static GravarComprovanteCommand pedido(UUID id) {
         return new GravarComprovanteCommand(id, new ComprovanteRequest(
@@ -54,8 +63,18 @@ class ConsumidorDeGravacaoTest {
     }
 
     @Test
+    void aMesmaMensagemDuasVezesPublicaOFatoUmaVezSo() {
+        UUID id = UUID.randomUUID();
+
+        consumidor.receber(pedido(id), false);   // gravou agora: publica o fato
+        consumidor.receber(pedido(id), true);    // já estava gravado: não aconteceu nada de novo
+
+        verify(fato, times(1)).publicar(pedido(id));
+    }
+
+    @Test
     void comAChaveLigadaGravaECaiAntesDoAckMasNaoCaiNaReentrega() {
-        ConsumidorDeGravacao queCai = new ConsumidorDeGravacao(gravador, true, 0);
+        ConsumidorDeGravacao queCai = new ConsumidorDeGravacao(gravador, fato, true, 0);
         UUID id = UUID.randomUUID();
 
         assertThatThrownBy(() -> queCai.receber(pedido(id), false)).hasMessageContaining("ANTES do ack");
@@ -73,11 +92,12 @@ class ConsumidorDeGravacaoTest {
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("sem os dados");
         assertThat(repository.existsById(id)).isFalse();
+        verify(fato, never()).publicar(any());   // não gravou: não tem fato
     }
 
     @Test
     void oBancoQuePiscaFalhaNasPrimeirasTentativasEDepoisGrava() {
-        ConsumidorDeGravacao comBancoPiscando = new ConsumidorDeGravacao(gravador, false, 2);
+        ConsumidorDeGravacao comBancoPiscando = new ConsumidorDeGravacao(gravador, fato, false, 2);
         UUID id = UUID.randomUUID();
 
         assertThatThrownBy(() -> comBancoPiscando.receber(pedido(id), false)).hasMessageContaining("piscou");

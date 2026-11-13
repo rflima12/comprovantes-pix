@@ -1,9 +1,9 @@
-# Sobe o RabbitMQ, o emissor (8081), a consulta (8083), o Redis e o gravador (8082),
-# cada um no seu container.
+# Sobe o RabbitMQ, o Kafka e o painel dele, o emissor (8081), o gravador (8082), a consulta (8083),
+# o Redis e as reações, cada um no seu container.
 #
-#   docker compose up -d --build rabbitmq emissor consulta redis   # em segundo plano
-#   docker compose up --build gravador                             # o gravador, mostrando o log neste terminal
-#   docker compose run --rm testes                                 # roda os testes (mvn test)
+#   docker compose up -d --build        # tudo, em segundo plano
+#   docker compose logs -f reacoes      # o log das reações (o SMS), neste terminal
+#   docker compose run --rm testes      # roda os testes (mvn test)
 #
 # O README explica o resto.
 name: comprovantes-pix
@@ -25,6 +25,49 @@ services:
       timeout: 10s
       retries: 20
 
+  # Aula 6: o Kafka, com o tópico comprovante-gravado. Um broker só, sem ZooKeeper (o modo KRaft).
+  kafka:
+    image: apache/kafka:3.9.1
+    hostname: kafka
+    ports:
+      - "9092:9092"   # para quem roda os serviços fora do Docker (o "Sem Docker" do README)
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller   # a mesma máquina guarda as mensagens e organiza o cluster
+      # Duas portas: a 19092, para os serviços dentro do Docker (kafka:19092), e a 9092, para fora (localhost:9092).
+      KAFKA_LISTENERS: INTERNA://:19092,EXTERNA://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: INTERNA://kafka:19092,EXTERNA://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNA:PLAINTEXT,EXTERNA:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNA
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      # Uma máquina só: cada tópico interno do Kafka (os marcadores dos grupos, por exemplo) tem uma réplica só.
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      # Um grupo novo começa a ler na hora, sem esperar 3 segundos por outros membros.
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      # Ninguém cria tópico sem querer: só o gravador e as reações criam o comprovante-gravado, com 3 partições.
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+    # "Está pronto?" O gravador, as reações e o painel só sobem depois que o Kafka responde.
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list"]
+      interval: 5s
+      timeout: 10s
+      retries: 20
+
+  # Aula 6: o painel do Kafka, como o do RabbitMQ. http://localhost:8090, sem senha.
+  kafka-ui:
+    image: ghcr.io/kafbat/kafka-ui:v1.3.0
+    ports:
+      - "8090:8080"
+    depends_on:
+      kafka:
+        condition: service_healthy
+    environment:
+      KAFKA_CLUSTERS_0_NAME: comprovantes-pix
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:19092
+
   gravador:
     build:
       context: .
@@ -35,9 +78,12 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
+      kafka:
+        condition: service_healthy
     environment:
       # Dentro do Docker, cada serviço acha o outro pelo nome, e não por "localhost".
       SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:19092
       # Deixa abrir o console do H2 de fora do container (http://localhost:8082/h2-console).
       SPRING_H2_CONSOLE_SETTINGS_WEBALLOWOTHERS: "true"
       # Só para a demo da Aula 2 (gravador lento). Ex.: DEMO_ATRASO_MS=3000 docker compose up -d gravador
@@ -62,8 +108,6 @@ services:
       GRAVADOR_BASE_URL: http://gravador:8082
       SPRING_RABBITMQ_HOST: rabbitmq
       SPRING_H2_CONSOLE_SETTINGS_WEBALLOWOTHERS: "true"
-      # Só para a demo da Aula 3 (SMS fora do ar). Ex.: DEMO_SMS_FORA=true docker compose up --build emissor
-      DEMO_SMSFORA: ${DEMO_SMS_FORA:-false}
 
   # Aula 4: o GET /comprovantes/{id}. Lê do gravador e guarda no Redis.
   consulta:
@@ -76,6 +120,19 @@ services:
     environment:
       GRAVADOR_BASE_URL: http://gravador:8082
       SPRING_DATA_REDIS_HOST: redis
+
+  # Aula 6: as reações ao fato "comprovante gravado" (o SMS). Sem porta: só escutam o tópico.
+  # Para ver o log: docker compose logs -f reacoes
+  reacoes:
+    build:
+      context: .
+      args:
+        MODULO: reacoes
+    depends_on:
+      kafka:
+        condition: service_healthy
+    environment:
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:19092
 
   # Aula 4: o cache da consulta. Para olhar dentro: docker compose exec redis redis-cli KEYS '*'
   # Sem "ports": só a consulta precisa falar com ele, e por dentro da rede do Docker.

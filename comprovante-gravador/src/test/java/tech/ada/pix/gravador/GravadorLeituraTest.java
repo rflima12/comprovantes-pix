@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -21,6 +22,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest(properties = {
         "demo.leitura-lenta-ms=0",
         "spring.rabbitmq.listener.simple.auto-startup=false",   // não escuta o RabbitMQ de verdade
+        "spring.kafka.admin.auto-create=false",                 // não cria o tópico no Kafka de verdade
         "spring.datasource.url=jdbc:h2:mem:gravador-leitura;DB_CLOSE_DELAY=-1"
 })
 @AutoConfigureMockMvc
@@ -28,6 +30,9 @@ class GravadorLeituraTest {
 
     @Autowired
     private MockMvc mvc;
+
+    @MockBean
+    private PublicadorDoFato fato;   // o Kafka de mentira: o teste não precisa do Kafka rodando
 
     @Test
     void devolveOComprovanteGravado() throws Exception {

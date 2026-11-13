@@ -4,7 +4,6 @@ import tech.ada.pix.contracts.ComprovanteAceito;
 import tech.ada.pix.contracts.ComprovanteRequest;
 import tech.ada.pix.emissor.dominio.ChavePix;
 import tech.ada.pix.emissor.dominio.Comprovante;
-import tech.ada.pix.emissor.dominio.ComprovanteGravado;
 import tech.ada.pix.emissor.dominio.ContaBancaria;
 import tech.ada.pix.emissor.dominio.Dinheiro;
 import tech.ada.pix.emissor.gravacao.GravacaoAdapter;
@@ -12,7 +11,6 @@ import tech.ada.pix.emissor.gravacao.GravacaoFalhouException;
 import tech.ada.pix.emissor.persistencia.ComprovanteRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -28,9 +26,10 @@ import java.time.LocalDateTime;
  *   Deu certo        : marcar GRAVADO e responder 202
  *   Deu errado       : COMPENSAR o passo 1 (invalidar) e responder 503
  *
- * Aula 3: no fim da SAGA, AVISA que o comprovante foi gravado (evento ComprovanteGravado).
- * O núcleo do dinheiro continua ORQUESTRADO aqui. A periferia (SMS, antifraude, BI)
- * reage ao evento por conta própria: é COREOGRAFIA. O emissor nem sabe quem são.
+ * Aula 3: no fim da SAGA, avisava que o comprovante foi gravado (um evento do Spring), e as
+ * reações (SMS, antifraude, BI) moravam aqui dentro: era COREOGRAFIA, mas sem sair do processo.
+ * Aula 6: quem avisa agora é o GRAVADOR, porque é ele que sabe que gravou. Ele publica o fato
+ * no Kafka, e as reações moram num serviço próprio, o comprovante-reacoes.
  *
  * ⚠️ Este método NÃO tem @Transactional, de propósito. Cada salvar(...) é uma transação
  * local com o seu próprio COMMIT. Se o método inteiro fosse uma transação só:
@@ -45,13 +44,10 @@ public class EmissaoService {
 
     private final ComprovanteRepository comprovantes;
     private final GravacaoAdapter gravacao;
-    private final ApplicationEventPublisher eventos;
 
-    public EmissaoService(ComprovanteRepository comprovantes, GravacaoAdapter gravacao,
-                          ApplicationEventPublisher eventos) {
+    public EmissaoService(ComprovanteRepository comprovantes, GravacaoAdapter gravacao) {
         this.comprovantes = comprovantes;
         this.gravacao = gravacao;
-        this.eventos = eventos;
     }
 
     public ComprovanteAceito aceitar(ComprovanteRequest r) {
@@ -80,9 +76,6 @@ public class EmissaoService {
         }
 
         log.info("SAGA concluída: comprovante {} GRAVADO", comprovante.id());
-
-        // Aula 3: a SAGA acabou. Agora é só AVISAR (evento, não comando): quem se interessa, reage.
-        eventos.publishEvent(new ComprovanteGravado(comprovante.id(), comprovante.valor()));
         return new ComprovanteAceito(comprovante.id(), LocalDateTime.now());
     }
 

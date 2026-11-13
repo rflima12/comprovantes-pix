@@ -25,6 +25,8 @@ import java.util.UUID;
  * a usar a fila no exercício. Esta porta continua aqui para as demos (o gravar.json da Aula 4).
  *
  * GET (Aula 4): 200 → o comprovante · 404 → não está gravado. Quem chama é a consulta.
+ *
+ * Aula 6: gravou por aqui também é fato. Publica no Kafka, como o ConsumidorDeGravacao.
  */
 @RestController
 @RequestMapping("/interno/comprovantes")
@@ -33,13 +35,15 @@ public class GravadorController {
     private static final Logger log = LoggerFactory.getLogger(GravadorController.class);
 
     private final GravadorService gravador;
+    private final PublicadorDoFato fato;
     private final long atrasoMs;
     private final long leituraLentaMs;
 
-    public GravadorController(GravadorService gravador,
+    public GravadorController(GravadorService gravador, PublicadorDoFato fato,
                               @Value("${demo.atraso-ms:0}") long atrasoMs,
                               @Value("${demo.leitura-lenta-ms:0}") long leituraLentaMs) {
         this.gravador = gravador;
+        this.fato = fato;
         this.atrasoMs = atrasoMs;
         this.leituraLentaMs = leituraLentaMs;
     }
@@ -49,6 +53,9 @@ public class GravadorController {
         boolean gravouAgora = gravador.gravar(command);
         log.info("Recebi por HTTP o pedido de gravação do comprovante {}: {}",
                 command.identificadorComprovante(), gravouAgora ? "gravei" : "já estava gravado");
+        if (gravouAgora) {
+            fato.publicar(command); // Aula 6: gravou agora. Avisa quem quiser saber.
+        }
         Thread.sleep(atrasoMs); // ⚠️ só para a demo
         return ResponseEntity.status(gravouAgora ? HttpStatus.CREATED : HttpStatus.OK).build();
     }

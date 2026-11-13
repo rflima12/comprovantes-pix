@@ -30,6 +30,7 @@
         <module>comprovante-emissor</module>
         <module>comprovante-gravador</module>
         <module>comprovante-consulta</module>
+        <module>comprovante-reacoes</module>
     </modules>
 
     <properties>
